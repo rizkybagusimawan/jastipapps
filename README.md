@@ -1,6 +1,6 @@
 # jastipapps
 
-A new Flutter project.
+Aplikasi Jasa Titip menggunakan Flutter + backend Spring Boot.
 
 ## Getting Started
 
