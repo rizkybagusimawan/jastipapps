@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import '../models/admin_order.dart';
 import '../services/api_service.dart';
+import '../screens/chat_screen.dart';
+import '../screens/product_form_screen.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
 class ManageOrdersScreen extends StatefulWidget {
   const ManageOrdersScreen({super.key});
@@ -58,50 +62,18 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
   }
 
   Future<void> _changeStatus(AdminOrderItem order) async {
-    final statuses = ['pending', 'diproses', 'selesai', 'dibatalkan'];
-    final selected = await showDialog<String>(
+    final result = await showDialog<bool>(
       context: context,
-      builder: (context) => SimpleDialog(
-        title: const Text('Ubah Status Order'),
-        children: statuses.map((s) {
-          return SimpleDialogOption(
-            onPressed: () => Navigator.pop(context, s),
-            child: Row(
-              children: [
-                Container(
-                  width: 10,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: _statusColor(s),
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Text(s),
-              ],
-            ),
-          );
-        }).toList(),
-      ),
+      builder: (context) =>
+          _ChangeStatusDialog(order: order, apiService: _apiService),
     );
 
-    if (selected != null) {
-      try {
-        await _apiService.updateOrderStatus(
-          orderId: order.id,
-          status: selected,
-        );
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('Status diubah')));
-        _refresh();
-      } catch (e) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.toString())));
-      }
+    if (result == true) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Status diubah')));
+      _refresh();
     }
   }
 
@@ -326,18 +298,56 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                                     fontStyle: FontStyle.italic,
                                   ),
                                 ),
+                                if (order.keteranganStatus != null &&
+                                    order.keteranganStatus!.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    'Keterangan: ${order.keteranganStatus}',
+                                    style: const TextStyle(fontSize: 12),
+                                  ),
+                                ],
+                                if (order.buktiFotoUrl != null &&
+                                    order.buktiFotoUrl!.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Image.network(
+                                    order.buktiFotoUrl!,
+                                    height: 100,
+                                    fit: BoxFit.cover,
+                                  ),
+                                ],
                               ],
                               const SizedBox(height: 8),
-                              Align(
-                                alignment: Alignment.centerRight,
-                                child: OutlinedButton.icon(
-                                  onPressed: () => _changeStatus(order),
-                                  icon: const Icon(
-                                    Icons.edit_outlined,
-                                    size: 16,
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  OutlinedButton.icon(
+                                    onPressed: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => ChatScreen(
+                                            orderId: order.id,
+                                            orderTitle: order.namaProduk,
+                                          ),
+                                        ),
+                                      );
+                                    },
+                                    icon: const Icon(
+                                      Icons.chat_bubble_outline,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Chat'),
                                   ),
-                                  label: const Text('Ubah Status'),
-                                ),
+                                  const SizedBox(width: 8),
+                                  OutlinedButton.icon(
+                                    onPressed: () => _changeStatus(order),
+                                    icon: const Icon(
+                                      Icons.edit_outlined,
+                                      size: 16,
+                                    ),
+                                    label: const Text('Ubah Status'),
+                                  ),
+                                ],
                               ),
                             ],
                           ),
@@ -358,5 +368,169 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+}
+
+class _ChangeStatusDialog extends StatefulWidget {
+  final AdminOrderItem order;
+  final ApiService apiService;
+
+  const _ChangeStatusDialog({required this.order, required this.apiService});
+
+  @override
+  State<_ChangeStatusDialog> createState() => _ChangeStatusDialogState();
+}
+
+class _ChangeStatusDialogState extends State<_ChangeStatusDialog> {
+  late String _selectedStatus;
+  final _keteranganController = TextEditingController();
+  final _buktiFotoController = TextEditingController();
+  bool _isSaving = false;
+  bool _isUploadingBukti = false;
+  File? _selectedBuktiImage;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedStatus = widget.order.status;
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+    if (pickedFile == null) return;
+
+    setState(() {
+      _selectedBuktiImage = File(pickedFile.path);
+      _isUploadingBukti = true;
+    });
+
+    try {
+      final url = await widget.apiService.uploadImage(_selectedBuktiImage!);
+      setState(() {
+        _buktiFotoController.text = url;
+        _isUploadingBukti = false;
+      });
+    } catch (e) {
+      setState(() => _isUploadingBukti = false);
+    }
+  }
+
+  Future<void> _handleSave() async {
+    setState(() => _isSaving = true);
+    try {
+      await widget.apiService.updateOrderStatus(
+        orderId: widget.order.id,
+        status: _selectedStatus,
+        keteranganStatus: _keteranganController.text.trim(),
+        buktiFotoUrl: _buktiFotoController.text.trim(),
+      );
+      if (!mounted) return;
+      Navigator.pop(context, true);
+    } catch (e) {
+      setState(() => _isSaving = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.toString())));
+    }
+  }
+
+  @override
+  void dispose() {
+    _keteranganController.dispose();
+    _buktiFotoController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Ubah Status Order'),
+      content: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            DropdownButtonFormField<String>(
+              initialValue: _selectedStatus,
+              decoration: const InputDecoration(labelText: 'Status'),
+              items: [
+                'pending',
+                'diproses',
+                'selesai',
+                'dibatalkan',
+              ].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
+              onChanged: (value) => setState(() => _selectedStatus = value!),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _keteranganController,
+              decoration: const InputDecoration(
+                labelText: 'Keterangan (opsional)',
+                hintText: 'Misal: barang sudah dikirim via JNE',
+              ),
+              maxLines: 2,
+            ),
+            if (_selectedStatus == 'selesai') ...[
+              const SizedBox(height: 12),
+              const Text(
+                'Bukti Foto',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _isUploadingBukti ? null : _pickImage,
+                child: Container(
+                  height: 120,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: _buildImageArea(),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Batal'),
+        ),
+        FilledButton(
+          onPressed: _isSaving ? null : _handleSave,
+          child: _isSaving
+              ? const SizedBox(
+                  height: 16,
+                  width: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Simpan'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildImageArea() {
+    return ExcludeSemantics(
+      child: _isUploadingBukti
+          ? const Center(child: CircularProgressIndicator())
+          : _selectedBuktiImage != null
+          ? ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Image.file(
+                _selectedBuktiImage!,
+                fit: BoxFit.cover,
+                width: double.infinity,
+              ),
+            )
+          : const Center(child: Text('Tap untuk pilih foto bukti')),
+    );
   }
 }

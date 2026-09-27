@@ -9,6 +9,8 @@ class OrderItem {
   final double totalHarga;
   final String status;
   final String createdAt;
+  final String? keteranganStatus;
+  final String? buktiFotoUrl;
 
   OrderItem({
     required this.id,
@@ -21,6 +23,8 @@ class OrderItem {
     required this.totalHarga,
     required this.status,
     required this.createdAt,
+    this.keteranganStatus,
+    this.buktiFotoUrl,
   });
 
   factory OrderItem.fromJson(Map<String, dynamic> json) {
@@ -35,6 +39,8 @@ class OrderItem {
       totalHarga: (json['totalHarga'] as num).toDouble(),
       status: json['status'],
       createdAt: json['createdAt'],
+      keteranganStatus: json['keteranganStatus'],
+      buktiFotoUrl: json['buktiFotoUrl'],
     );
   }
 }

@@ -11,6 +11,8 @@ class AdminOrderItem {
   final String createdAt;
   final String userFullName;
   final String userEmail;
+  final String? keteranganStatus;
+  final String? buktiFotoUrl;
 
   AdminOrderItem({
     required this.id,
@@ -25,6 +27,8 @@ class AdminOrderItem {
     required this.createdAt,
     required this.userFullName,
     required this.userEmail,
+    this.keteranganStatus,
+    this.buktiFotoUrl,
   });
 
   factory AdminOrderItem.fromJson(Map<String, dynamic> json) {
@@ -41,6 +45,8 @@ class AdminOrderItem {
       createdAt: json['createdAt'],
       userFullName: json['userFullName'],
       userEmail: json['userEmail'],
+      keteranganStatus: json['keteranganStatus'],
+      buktiFotoUrl: json['buktiFotoUrl'],
     );
   }
 }

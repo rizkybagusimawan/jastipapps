@@ -4,6 +4,8 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import '../models/user_profile.dart';
 import '../models/order.dart';
 import '../models/admin_order.dart';
+import '../models/chat_message.dart';
+import 'dart:io';
 
 class ApiService {
   // Ganti IP ini kalau test di HP fisik (pakai IP lokal komputer, misal 192.168.1.x)
@@ -159,7 +161,7 @@ class ApiService {
   Future<Product> getProductById(String id) async {
     try {
       final response = await Dio(
-        BaseOptions(baseUrl: 'http://10.0.2.2:8080/api'),
+        BaseOptions(baseUrl: 'http://localhost:8080/api'),
       ).get('/products/$id');
 
       return Product.fromJson(response.data);
@@ -389,14 +391,71 @@ class ApiService {
   Future<void> updateOrderStatus({
     required String orderId,
     required String status,
+    String? keteranganStatus,
+    String? buktiFotoUrl,
   }) async {
     try {
       final token = await getToken();
       await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).patch(
         '/orders/$orderId/status',
-        data: {'status': status},
+        data: {
+          'status': status,
+          'keteranganStatus': keteranganStatus,
+          'buktiFotoUrl': buktiFotoUrl,
+        },
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<List<ChatMessage>> getMessages(String orderId) async {
+    try {
+      final token = await getToken();
+      final response =
+          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).get(
+            '/orders/$orderId/messages',
+            options: Options(headers: {'Authorization': 'Bearer $token'}),
+          );
+      final List<dynamic> data = response.data;
+      return data.map((json) => ChatMessage.fromJson(json)).toList();
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> sendMessage({
+    required String orderId,
+    required String message,
+  }) async {
+    try {
+      final token = await getToken();
+      await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).post(
+        '/orders/$orderId/messages',
+        data: {'message': message},
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<String> uploadImage(File imageFile) async {
+    try {
+      final token = await getToken();
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(imageFile.path),
+      });
+
+      final response =
+          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).post(
+            '/upload',
+            data: formData,
+            options: Options(headers: {'Authorization': 'Bearer $token'}),
+          );
+
+      return response.data['url'];
     } on DioException catch (e) {
       throw _handleError(e);
     }

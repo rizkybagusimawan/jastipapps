@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/order.dart';
 import '../services/api_service.dart';
 import 'package:flutter/services.dart';
+import '../screens/chat_screen.dart';
 
 class OrderHistoryScreen extends StatefulWidget {
   const OrderHistoryScreen({super.key});
@@ -175,21 +176,58 @@ class OrderHistoryScreenState extends State<OrderHistoryScreen> {
                             ),
                           ],
                         ),
+                        if (order.keteranganStatus != null &&
+                            order.keteranganStatus!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Keterangan: ${order.keteranganStatus}',
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                        ],
+                        if (order.buktiFotoUrl != null &&
+                            order.buktiFotoUrl!.isNotEmpty) ...[
+                          const SizedBox(height: 4),
+                          Image.network(
+                            order.buktiFotoUrl!,
+                            height: 100,
+                            fit: BoxFit.cover,
+                          ),
+                        ],
                       ],
                     ),
                     isThreeLine: true,
 
-                    trailing: Chip(
-                      label: Text(
-                        order.status,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.white,
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ChatScreen(
+                                  orderId: order.id,
+                                  orderTitle: order.namaProduk,
+                                ),
+                              ),
+                            );
+                          },
                         ),
-                      ),
-                      backgroundColor: _statusColor(order.status),
-                      padding: EdgeInsets.zero,
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        Chip(
+                          label: Text(
+                            order.status,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white,
+                            ),
+                          ),
+                          backgroundColor: _statusColor(order.status),
+                          padding: EdgeInsets.zero,
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ],
                     ),
                   ),
                 );

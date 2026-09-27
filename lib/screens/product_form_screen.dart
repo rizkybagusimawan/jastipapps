@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../services/api_service.dart';
+import 'dart:io';
+import 'package:image_picker/image_picker.dart';
 
 class ProductFormScreen extends StatefulWidget {
   final Product? product; // null = mode tambah, ada isinya = mode edit
@@ -23,6 +25,8 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
   late final TextEditingController _hargaAsliController;
   late final TextEditingController _biayaJasaController;
   late final TextEditingController _kuotaController;
+  File? _selectedImage;
+  bool _isUploadingImage = false;
 
   bool _isSaving = false;
 
@@ -44,6 +48,35 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
       text: p?.biayaJasa.toStringAsFixed(0) ?? '',
     );
     _kuotaController = TextEditingController(text: p?.kuota.toString() ?? '1');
+  }
+
+  Future<void> _pickAndUploadImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 80,
+    );
+
+    if (pickedFile == null) return;
+
+    setState(() {
+      _selectedImage = File(pickedFile.path);
+      _isUploadingImage = true;
+    });
+
+    try {
+      final url = await _apiService.uploadImage(_selectedImage!);
+      setState(() {
+        _fotoUrlController.text = url;
+        _isUploadingImage = false;
+      });
+    } catch (e) {
+      setState(() => _isUploadingImage = false);
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Gagal upload: $e')));
+    }
   }
 
   Future<void> _handleSave() async {
@@ -129,11 +162,59 @@ class _ProductFormScreenState extends State<ProductFormScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: _fotoUrlController,
-                decoration: const InputDecoration(
-                  labelText: 'URL Foto',
-                  border: OutlineInputBorder(),
+              const Text(
+                'Foto Produk',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              GestureDetector(
+                onTap: _isUploadingImage ? null : _pickAndUploadImage,
+                child: Container(
+                  height: 160,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: _isUploadingImage
+                      ? const Center(child: CircularProgressIndicator())
+                      : _selectedImage != null
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(8),
+                          child: Image.file(
+                            _selectedImage!,
+                            fit: BoxFit.cover,
+                            width: double.infinity,
+                          ),
+                        )
+                      : (_fotoUrlController.text.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.network(
+                                  _fotoUrlController.text,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  errorBuilder: (_, __, ___) => const Center(
+                                    child: Icon(
+                                      Icons.add_photo_alternate_outlined,
+                                      size: 40,
+                                    ),
+                                  ),
+                                ),
+                              )
+                            : const Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.add_photo_alternate_outlined,
+                                      size: 40,
+                                    ),
+                                    SizedBox(height: 8),
+                                    Text('Tap untuk pilih foto dari galeri'),
+                                  ],
+                                ),
+                              )),
                 ),
               ),
               const SizedBox(height: 12),
