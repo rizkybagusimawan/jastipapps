@@ -2,6 +2,12 @@
 
 Aplikasi **Jasa Titip** menggunakan **Flutter** sebagai frontend dan **Spring Boot** sebagai backend.
 
+## 🔗 Backend
+
+Repository backend Spring Boot:
+
+[JastipApps Backend – Spring Boot](https://github.com/rizkybagusimawan/jastipapps-backend?utm_source=chatgpt.com)
+
 ## 📱 Screenshots
 
 ### User
