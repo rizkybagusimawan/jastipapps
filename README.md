@@ -1,23 +1,39 @@
-# jastipapps
+# JastipApps
 
-Aplikasi Jasa Titip menggunakan Flutter + backend Spring Boot.
+Aplikasi **Jasa Titip** menggunakan **Flutter** sebagai frontend dan **Spring Boot** sebagai backend.
 
 ## 📱 Screenshots
 
-### Login
-![Login](screenshots/login.png)
+### User
 
-### Home
-![Home](screenshots/halaman utama.png)
+<p align="center">
+  <img src="screenshots/login.png" width="180">
+  <img src="screenshots/halamanutama.png" width="180">
+  <img src="screenshots/riwayatorder.png" width="180">
+</p>
 
-### Order History
-![OrderHistory](screenshots/riwayat order.png)
+<p align="center">
+  <b>Login</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <b>Home</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <b>Order History</b>
+</p>
 
-### Chat
-![Chat](screenshots/chat.png)
+<p align="center">
+  <img src="screenshots/chat.png" width="180">
+</p>
 
-### Manage Product (Admin)
-![ManageProduct](screenshots/kelola produk.png)
+<p align="center">
+  <b>Chat</b>
+</p>
 
-### Manage Order
-![ManageOrder](screenshots/kelola order.png)
+### Admin
+
+<p align="center">
+  <img src="screenshots/kelolaproduk.png" width="180">
+  <img src="screenshots/kelolaorder.png" width="180">
+</p>
+
+<p align="center">
+  <b>Manage Product</b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+  <b>Manage Order</b>
+</p>
