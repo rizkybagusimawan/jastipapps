@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../services/api_service.dart';
 import 'product_detail_screen.dart';
+import '../config/app_config.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -199,7 +200,7 @@ class _ProductCard extends StatelessWidget {
           Expanded(
             child: product.fotoUrl != null
                 ? Image.network(
-                    product.fotoUrl!,
+                    AppConfig.getImageUrl(product.fotoUrl!),
                     fit: BoxFit.cover,
                     width: double.infinity,
                     errorBuilder: (_, __, ___) => Container(

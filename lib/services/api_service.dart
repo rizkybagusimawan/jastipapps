@@ -6,16 +6,12 @@ import '../models/order.dart';
 import '../models/admin_order.dart';
 import '../models/chat_message.dart';
 import 'dart:io';
+import '../config/app_config.dart';
 
 class ApiService {
-  // Ganti IP ini kalau test di HP fisik (pakai IP lokal komputer, misal 192.168.1.x)
-  // Untuk emulator Android pakai: http://10.0.2.2:8080
-  // Untuk simulator iOS / macOS bisa pakai: http://localhost:8080
-  static const String baseUrl = 'http://localhost:8080/api/auth';
-
   final Dio _dio = Dio(
     BaseOptions(
-      baseUrl: baseUrl,
+      baseUrl: '${AppConfig.apiBaseUrl}/auth',
       connectTimeout: const Duration(seconds: 10),
       receiveTimeout: const Duration(seconds: 10),
     ),
@@ -141,8 +137,8 @@ class ApiService {
     String? kategori,
   }) async {
     try {
-      final response =
-          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).get(
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .get(
             '/products',
             queryParameters: {
               if (status != null) 'status': status,
@@ -161,7 +157,7 @@ class ApiService {
   Future<Product> getProductById(String id) async {
     try {
       final response = await Dio(
-        BaseOptions(baseUrl: 'http://localhost:8080/api'),
+        BaseOptions(baseUrl: AppConfig.apiBaseUrl),
       ).get('/products/$id');
 
       return Product.fromJson(response.data);
@@ -207,8 +203,8 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response =
-          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).post(
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .post(
             '/orders',
             data: {
               'productId': productId,
@@ -227,8 +223,8 @@ class ApiService {
     try {
       final token = await getToken();
 
-      final response =
-          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).get(
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .get(
             '/orders/my',
             options: Options(headers: {'Authorization': 'Bearer $token'}),
           );
@@ -260,8 +256,8 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response =
-          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).post(
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .post(
             '/products',
             data: {
               'namaProduk': namaProduk,
@@ -294,8 +290,8 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response =
-          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).put(
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .put(
             '/products/$id',
             data: {
               'namaProduk': namaProduk,
@@ -321,7 +317,7 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).patch(
+      await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)).patch(
         '/products/$id/status',
         data: {'status': status},
         options: Options(headers: {'Authorization': 'Bearer $token'}),
@@ -334,7 +330,7 @@ class ApiService {
   Future<void> deleteProduct(String id) async {
     try {
       final token = await getToken();
-      await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).delete(
+      await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)).delete(
         '/products/$id',
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
@@ -349,8 +345,8 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response =
-          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).get(
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .get(
             '/products',
             queryParameters: {
               'size': 100,
@@ -372,8 +368,8 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      final response =
-          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).get(
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .get(
             '/orders/all',
             queryParameters: {
               if (status != null && status.isNotEmpty) 'status': status,
@@ -396,7 +392,7 @@ class ApiService {
   }) async {
     try {
       final token = await getToken();
-      await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).patch(
+      await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)).patch(
         '/orders/$orderId/status',
         data: {
           'status': status,
@@ -413,8 +409,8 @@ class ApiService {
   Future<List<ChatMessage>> getMessages(String orderId) async {
     try {
       final token = await getToken();
-      final response =
-          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).get(
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .get(
             '/orders/$orderId/messages',
             options: Options(headers: {'Authorization': 'Bearer $token'}),
           );
@@ -427,13 +423,15 @@ class ApiService {
 
   Future<void> sendMessage({
     required String orderId,
-    required String message,
+    String? message,
+    String? imageUrl,
   }) async {
     try {
       final token = await getToken();
-      await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).post(
+
+      await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)).post(
         '/orders/$orderId/messages',
-        data: {'message': message},
+        data: {'message': message, 'imageUrl': imageUrl},
         options: Options(headers: {'Authorization': 'Bearer $token'}),
       );
     } on DioException catch (e) {
@@ -448,14 +446,63 @@ class ApiService {
         'file': await MultipartFile.fromFile(imageFile.path),
       });
 
-      final response =
-          await Dio(BaseOptions(baseUrl: 'http://localhost:8080/api')).post(
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .post(
             '/upload',
             data: formData,
             options: Options(headers: {'Authorization': 'Bearer $token'}),
           );
 
       return response.data['url'];
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<void> markMessagesAsRead(String orderId) async {
+    try {
+      final token = await getToken();
+
+      await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl)).patch(
+        '/orders/$orderId/messages/read',
+        options: Options(headers: {'Authorization': 'Bearer $token'}),
+      );
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<int> getUnreadMessageCount(String orderId) async {
+    try {
+      final token = await getToken();
+
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .get(
+            '/orders/$orderId/messages/unread-count',
+            options: Options(headers: {'Authorization': 'Bearer $token'}),
+          );
+
+      return response.data['count'] ?? 0;
+    } on DioException catch (e) {
+      throw _handleError(e);
+    }
+  }
+
+  Future<Map<String, int>> getUnreadMessageCounts() async {
+    try {
+      final token = await getToken();
+
+      final response = await Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl))
+          .get(
+            '/orders/my/messages/unread-counts',
+            options: Options(headers: {'Authorization': 'Bearer $token'}),
+          );
+
+      final Map<String, dynamic> data = Map<String, dynamic>.from(
+        response.data,
+      );
+
+      return data.map((key, value) => MapEntry(key, (value as num).toInt()));
     } on DioException catch (e) {
       throw _handleError(e);
     }

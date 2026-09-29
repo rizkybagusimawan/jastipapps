@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../services/api_service.dart';
+import '../config/app_config.dart';
 
 class ProductDetailScreen extends StatefulWidget {
   final String productId;
@@ -54,7 +55,7 @@ class _ProductDetailScreenState extends State<ProductDetailScreen> {
                 flexibleSpace: FlexibleSpaceBar(
                   background: product.fotoUrl != null
                       ? Image.network(
-                          product.fotoUrl!,
+                          AppConfig.getImageUrl(product.fotoUrl!),
                           fit: BoxFit.cover,
                           errorBuilder: (_, __, ___) => Container(
                             color: Colors.grey[200],

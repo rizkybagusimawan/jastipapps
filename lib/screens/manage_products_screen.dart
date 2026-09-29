@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/product.dart';
 import '../services/api_service.dart';
 import 'product_form_screen.dart';
+import '../config/app_config.dart';
 
 class ManageProductsScreen extends StatefulWidget {
   const ManageProductsScreen({super.key});
@@ -315,7 +316,7 @@ class _AdminProductCard extends StatelessWidget {
                 aspectRatio: 1,
                 child: product.fotoUrl != null
                     ? Image.network(
-                        product.fotoUrl!,
+                        AppConfig.getImageUrl(product.fotoUrl!),
                         fit: BoxFit.cover,
                         width: double.infinity,
                         errorBuilder: (_, __, ___) => Container(

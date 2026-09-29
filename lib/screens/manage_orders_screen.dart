@@ -1,10 +1,13 @@
-import 'package:flutter/material.dart';
-import '../models/admin_order.dart';
-import '../services/api_service.dart';
-import '../screens/chat_screen.dart';
-import '../screens/product_form_screen.dart';
+import 'dart:async';
 import 'dart:io';
+
+import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+
+import '../config/app_config.dart';
+import '../models/admin_order.dart';
+import '../screens/chat_screen.dart';
+import '../services/api_service.dart';
 
 class ManageOrdersScreen extends StatefulWidget {
   const ManageOrdersScreen({super.key});
@@ -17,10 +20,15 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
   final ApiService _apiService = ApiService();
   final TextEditingController _searchController = TextEditingController();
 
+  Map<String, int> _unreadCounts = {};
+
   late Future<List<AdminOrderItem>> _ordersFuture;
+
+  Timer? _unreadTimer;
 
   String _selectedStatus = 'Semua';
   String _searchQuery = '';
+
   final List<String> _statusList = [
     'Semua',
     'pending',
@@ -32,16 +40,45 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
   @override
   void initState() {
     super.initState();
-    _refresh();
+
+    _ordersFuture = _apiService.getAllOrdersAdmin(status: null, orderId: '');
+
+    _loadUnreadCounts();
+
+    // Update badge otomatis setiap 4 detik.
+    _unreadTimer = Timer.periodic(const Duration(seconds: 4), (_) {
+      _loadUnreadCounts();
+    });
   }
 
-  void _refresh() {
-    setState(() {
-      _ordersFuture = _apiService.getAllOrdersAdmin(
-        status: _selectedStatus == 'Semua' ? null : _selectedStatus,
-        orderId: _searchQuery,
-      );
-    });
+  Future<void> _refresh() async {
+    final future = _apiService.getAllOrdersAdmin(
+      status: _selectedStatus == 'Semua' ? null : _selectedStatus,
+      orderId: _searchQuery,
+    );
+
+    if (mounted) {
+      setState(() {
+        _ordersFuture = future;
+      });
+    }
+
+    await Future.wait([future, _loadUnreadCounts()]);
+  }
+
+  Future<void> _loadUnreadCounts() async {
+    try {
+      final counts = await _apiService.getUnreadMessageCounts();
+
+      if (!mounted) return;
+
+      setState(() {
+        _unreadCounts = counts;
+      });
+    } catch (_) {
+      // Jangan membuat halaman order gagal
+      // hanya karena unread count gagal dimuat.
+    }
   }
 
   String _formatRupiah(double amount) {
@@ -61,6 +98,56 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
     }
   }
 
+  Widget _buildUnreadBadge(String orderId) {
+    final count = _unreadCounts[orderId] ?? 0;
+
+    if (count <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    return Positioned(
+      right: -6,
+      top: -8,
+      child: Container(
+        constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+        padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.red,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            width: 2,
+          ),
+        ),
+        child: Text(
+          count > 99 ? '99+' : count.toString(),
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openChat(AdminOrderItem order) async {
+    await Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) =>
+            ChatScreen(orderId: order.id, orderTitle: order.namaProduk),
+      ),
+    );
+
+    // Setelah kembali dari ChatScreen,
+    // langsung update badge.
+    if (!mounted) return;
+
+    await _loadUnreadCounts();
+  }
+
   Future<void> _changeStatus(AdminOrderItem order) async {
     final result = await showDialog<bool>(
       context: context,
@@ -70,10 +157,12 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
 
     if (result == true) {
       if (!mounted) return;
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(const SnackBar(content: Text('Status diubah')));
-      _refresh();
+
+      await _refresh();
     }
   }
 
@@ -104,14 +193,21 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                         icon: const Icon(Icons.clear),
                         onPressed: () {
                           _searchController.clear();
-                          setState(() => _searchQuery = '');
+
+                          setState(() {
+                            _searchQuery = '';
+                          });
+
                           _refresh();
                         },
                       )
                     : null,
               ),
               onSubmitted: (value) {
-                setState(() => _searchQuery = value);
+                setState(() {
+                  _searchQuery = value.trim();
+                });
+
                 _refresh();
               },
             ),
@@ -127,6 +223,7 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
               itemBuilder: (context, index) {
                 final status = _statusList[index];
                 final isSelected = status == _selectedStatus;
+
                 return ChoiceChip(
                   label: Text(status),
                   selected: isSelected,
@@ -136,24 +233,29 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                     vertical: 4,
                   ),
                   onSelected: (_) {
-                    setState(() => _selectedStatus = status);
+                    setState(() {
+                      _selectedStatus = status;
+                    });
+
                     _refresh();
                   },
                 );
               },
             ),
           ),
+
           const SizedBox(height: 8),
 
           Expanded(
             child: RefreshIndicator(
-              onRefresh: () async => _refresh(),
+              onRefresh: _refresh,
               child: FutureBuilder<List<AdminOrderItem>>(
                 future: _ordersFuture,
                 builder: (context, snapshot) {
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(child: CircularProgressIndicator());
                   }
+
                   if (snapshot.hasError) {
                     return ListView(
                       physics: const AlwaysScrollableScrollPhysics(),
@@ -189,6 +291,7 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                     itemCount: orders.length,
                     itemBuilder: (context, index) {
                       final order = orders[index];
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         child: Padding(
@@ -200,22 +303,28 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                                 children: [
                                   ClipRRect(
                                     borderRadius: BorderRadius.circular(8),
-                                    child: order.fotoUrl != null
+                                    child:
+                                        order.fotoUrl != null &&
+                                            order.fotoUrl!.isNotEmpty
                                         ? Image.network(
-                                            order.fotoUrl!,
+                                            AppConfig.getImageUrl(
+                                              order.fotoUrl!,
+                                            ),
                                             width: 48,
                                             height: 48,
                                             fit: BoxFit.cover,
-                                            errorBuilder: (_, __, ___) => Container(
-                                              width: 48,
-                                              height: 48,
-                                              color: Colors.grey[200],
-                                              child: const Icon(
-                                                Icons
-                                                    .image_not_supported_outlined,
-                                                size: 20,
-                                              ),
-                                            ),
+                                            errorBuilder: (_, __, ___) {
+                                              return Container(
+                                                width: 48,
+                                                height: 48,
+                                                color: Colors.grey[200],
+                                                child: const Icon(
+                                                  Icons
+                                                      .image_not_supported_outlined,
+                                                  size: 20,
+                                                ),
+                                              );
+                                            },
                                           )
                                         : Container(
                                             width: 48,
@@ -227,7 +336,9 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                                             ),
                                           ),
                                   ),
+
                                   const SizedBox(width: 12),
+
                                   Expanded(
                                     child: Column(
                                       crossAxisAlignment:
@@ -248,6 +359,7 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                                       ],
                                     ),
                                   ),
+
                                   Chip(
                                     label: Text(
                                       order.status,
@@ -263,7 +375,9 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                                   ),
                                 ],
                               ),
+
                               const Divider(),
+
                               Text(
                                 'Order ID: ${order.id}',
                                 style: TextStyle(
@@ -271,7 +385,9 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                                   color: Colors.grey[500],
                                 ),
                               ),
+
                               const SizedBox(height: 4),
+
                               Row(
                                 children: [
                                   const Icon(Icons.person_outline, size: 16),
@@ -288,6 +404,7 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                                   ),
                                 ],
                               ),
+
                               if (order.catatan != null &&
                                   order.catatan!.isNotEmpty) ...[
                                 const SizedBox(height: 4),
@@ -298,47 +415,64 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
                                     fontStyle: FontStyle.italic,
                                   ),
                                 ),
-                                if (order.keteranganStatus != null &&
-                                    order.keteranganStatus!.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Keterangan: ${order.keteranganStatus}',
-                                    style: const TextStyle(fontSize: 12),
-                                  ),
-                                ],
-                                if (order.buktiFotoUrl != null &&
-                                    order.buktiFotoUrl!.isNotEmpty) ...[
-                                  const SizedBox(height: 4),
-                                  Image.network(
-                                    order.buktiFotoUrl!,
-                                    height: 100,
-                                    fit: BoxFit.cover,
-                                  ),
-                                ],
                               ],
-                              const SizedBox(height: 8),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: [
-                                  OutlinedButton.icon(
-                                    onPressed: () {
-                                      Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => ChatScreen(
-                                            orderId: order.id,
-                                            orderTitle: order.namaProduk,
-                                          ),
+
+                              if (order.keteranganStatus != null &&
+                                  order.keteranganStatus!.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Keterangan: ${order.keteranganStatus}',
+                                  style: const TextStyle(fontSize: 12),
+                                ),
+                              ],
+
+                              if (order.buktiFotoUrl != null &&
+                                  order.buktiFotoUrl!.isNotEmpty) ...[
+                                const SizedBox(height: 4),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.network(
+                                    AppConfig.getImageUrl(order.buktiFotoUrl!),
+                                    height: 100,
+                                    width: double.infinity,
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) {
+                                      return Container(
+                                        height: 100,
+                                        width: double.infinity,
+                                        color: Colors.grey[200],
+                                        child: const Icon(
+                                          Icons.broken_image_outlined,
                                         ),
                                       );
                                     },
-                                    icon: const Icon(
-                                      Icons.chat_bubble_outline,
-                                      size: 16,
-                                    ),
-                                    label: const Text('Chat'),
                                   ),
+                                ),
+                              ],
+
+                              const SizedBox(height: 8),
+
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Stack(
+                                    clipBehavior: Clip.none,
+                                    children: [
+                                      OutlinedButton.icon(
+                                        onPressed: () => _openChat(order),
+                                        icon: const Icon(
+                                          Icons.chat_bubble_outline,
+                                          size: 16,
+                                        ),
+                                        label: const Text('Chat'),
+                                      ),
+
+                                      _buildUnreadBadge(order.id),
+                                    ],
+                                  ),
+
                                   const SizedBox(width: 8),
+
                                   OutlinedButton.icon(
                                     onPressed: () => _changeStatus(order),
                                     icon: const Icon(
@@ -366,6 +500,7 @@ class _ManageOrdersScreenState extends State<ManageOrdersScreen> {
 
   @override
   void dispose() {
+    _unreadTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
@@ -383,44 +518,77 @@ class _ChangeStatusDialog extends StatefulWidget {
 
 class _ChangeStatusDialogState extends State<_ChangeStatusDialog> {
   late String _selectedStatus;
+
   final _keteranganController = TextEditingController();
   final _buktiFotoController = TextEditingController();
+
   bool _isSaving = false;
   bool _isUploadingBukti = false;
+
   File? _selectedBuktiImage;
 
   @override
   void initState() {
     super.initState();
+
     _selectedStatus = widget.order.status;
+
+    _keteranganController.text = widget.order.keteranganStatus ?? '';
+
+    _buktiFotoController.text = widget.order.buktiFotoUrl ?? '';
   }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
+
     final pickedFile = await picker.pickImage(
       source: ImageSource.gallery,
       imageQuality: 80,
     );
-    if (pickedFile == null) return;
+
+    if (pickedFile == null || !mounted) return;
+
+    final imageFile = File(pickedFile.path);
+
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+
+    if (!mounted) return;
 
     setState(() {
-      _selectedBuktiImage = File(pickedFile.path);
+      _selectedBuktiImage = imageFile;
       _isUploadingBukti = true;
     });
 
     try {
-      final url = await widget.apiService.uploadImage(_selectedBuktiImage!);
+      final url = await widget.apiService.uploadImage(imageFile);
+
+      if (!mounted) return;
+
       setState(() {
         _buktiFotoController.text = url;
         _isUploadingBukti = false;
       });
     } catch (e) {
-      setState(() => _isUploadingBukti = false);
+      if (!mounted) return;
+
+      setState(() {
+        _isUploadingBukti = false;
+        _selectedBuktiImage = null;
+      });
+
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Upload foto gagal: $e')));
     }
   }
 
   Future<void> _handleSave() async {
-    setState(() => _isSaving = true);
+    if (!mounted) return;
+
+    setState(() {
+      _isSaving = true;
+    });
+
     try {
       await widget.apiService.updateOrderStatus(
         orderId: widget.order.id,
@@ -428,22 +596,69 @@ class _ChangeStatusDialogState extends State<_ChangeStatusDialog> {
         keteranganStatus: _keteranganController.text.trim(),
         buktiFotoUrl: _buktiFotoController.text.trim(),
       );
+
       if (!mounted) return;
+
       Navigator.pop(context, true);
     } catch (e) {
-      setState(() => _isSaving = false);
       if (!mounted) return;
+
+      setState(() {
+        _isSaving = false;
+      });
+
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(e.toString())));
     }
   }
 
-  @override
-  void dispose() {
-    _keteranganController.dispose();
-    _buktiFotoController.dispose();
-    super.dispose();
+  Widget _buildImageArea() {
+    if (_selectedBuktiImage != null) {
+      return Stack(
+        fit: StackFit.expand,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: Image.file(_selectedBuktiImage!, fit: BoxFit.cover),
+          ),
+          if (_isUploadingBukti)
+            Container(
+              decoration: BoxDecoration(
+                color: Colors.black.withValues(alpha: 0.35),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Center(child: CircularProgressIndicator()),
+            ),
+        ],
+      );
+    }
+
+    if (_buktiFotoController.text.isNotEmpty) {
+      return ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          AppConfig.getImageUrl(_buktiFotoController.text),
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) {
+            return const Center(
+              child: Icon(Icons.broken_image_outlined, size: 36),
+            );
+          },
+        ),
+      );
+    }
+
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.add_photo_alternate_outlined, size: 36),
+          SizedBox(height: 6),
+          Text('Tap untuk pilih foto bukti'),
+        ],
+      ),
+    );
   }
 
   @override
@@ -464,9 +679,17 @@ class _ChangeStatusDialogState extends State<_ChangeStatusDialog> {
                 'selesai',
                 'dibatalkan',
               ].map((s) => DropdownMenuItem(value: s, child: Text(s))).toList(),
-              onChanged: (value) => setState(() => _selectedStatus = value!),
+              onChanged: (value) {
+                if (value == null) return;
+
+                setState(() {
+                  _selectedStatus = value;
+                });
+              },
             ),
+
             const SizedBox(height: 12),
+
             TextField(
               controller: _keteranganController,
               decoration: const InputDecoration(
@@ -475,13 +698,17 @@ class _ChangeStatusDialogState extends State<_ChangeStatusDialog> {
               ),
               maxLines: 2,
             ),
+
             if (_selectedStatus == 'selesai') ...[
               const SizedBox(height: 12),
+
               const Text(
                 'Bukti Foto',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
               ),
+
               const SizedBox(height: 8),
+
               GestureDetector(
                 onTap: _isUploadingBukti ? null : _pickImage,
                 child: Container(
@@ -500,11 +727,12 @@ class _ChangeStatusDialogState extends State<_ChangeStatusDialog> {
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
           child: const Text('Batal'),
         ),
+
         FilledButton(
-          onPressed: _isSaving ? null : _handleSave,
+          onPressed: (_isSaving || _isUploadingBukti) ? null : _handleSave,
           child: _isSaving
               ? const SizedBox(
                   height: 16,
@@ -517,20 +745,10 @@ class _ChangeStatusDialogState extends State<_ChangeStatusDialog> {
     );
   }
 
-  Widget _buildImageArea() {
-    return ExcludeSemantics(
-      child: _isUploadingBukti
-          ? const Center(child: CircularProgressIndicator())
-          : _selectedBuktiImage != null
-          ? ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                _selectedBuktiImage!,
-                fit: BoxFit.cover,
-                width: double.infinity,
-              ),
-            )
-          : const Center(child: Text('Tap untuk pilih foto bukti')),
-    );
+  @override
+  void dispose() {
+    _keteranganController.dispose();
+    _buktiFotoController.dispose();
+    super.dispose();
   }
 }
